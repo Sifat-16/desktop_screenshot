@@ -17,7 +17,8 @@ struct _DesktopScreenshotPlugin {
 };
 
 G_DEFINE_TYPE(DesktopScreenshotPlugin, desktop_screenshot_plugin, g_object_get_type())
-
+// Function prototypes
+static void read_image_from_clipboard(FlMethodCall* method_call);
 // Called when a method call is received from Flutter.
 static void desktop_screenshot_plugin_handle_method_call(
     DesktopScreenshotPlugin* self,

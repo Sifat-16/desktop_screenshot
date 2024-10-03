@@ -1,5 +1,3 @@
-// desktop_screenshot_plugin.cc
-
 #include "include/desktop_screenshot/desktop_screenshot_plugin.h"
 
 #include <flutter_linux/flutter_linux.h>
@@ -15,44 +13,38 @@
                               DesktopScreenshotPlugin))
 
 struct _DesktopScreenshotPlugin {
-    GObject parent_instance;
+  GObject parent_instance;
 };
 
 G_DEFINE_TYPE(DesktopScreenshotPlugin, desktop_screenshot_plugin, g_object_get_type())
-
 // Function prototypes
 static void read_image_from_clipboard(FlMethodCall* method_call);
-static void get_screenshot(FlMethodCall* method_call);
-
 // Called when a method call is received from Flutter.
 static void desktop_screenshot_plugin_handle_method_call(
-        DesktopScreenshotPlugin* self,
-        FlMethodCall* method_call) {
-    g_autoptr(FlMethodResponse) response = nullptr;
+    DesktopScreenshotPlugin* self,
+    FlMethodCall* method_call) {
+  g_autoptr(FlMethodResponse) response = nullptr;
 
-    const gchar* method = fl_method_call_get_name(method_call);
+  const gchar* method = fl_method_call_get_name(method_call);
 
-    if (strcmp(method, "getPlatformVersion") == 0) {
-        response = get_platform_version();
-    } else if (strcmp(method, "readImageFromClipboard") == 0) {
-        read_image_from_clipboard(method_call);
-        return;
-    } else if (strcmp(method, "getScreenshot") == 0) {
-        get_screenshot(method_call);
-        return;
-    } else {
-        response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
-    }
+  if (strcmp(method, "getPlatformVersion") == 0) {
+    response = get_platform_version();
+  } else if (strcmp(method, "readImageFromClipboard") == 0) {
+      read_image_from_clipboard(method_call);
+      return;
+  } else {
+    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+  }
 
-    fl_method_call_respond(method_call, response, nullptr);
+  fl_method_call_respond(method_call, response, nullptr);
 }
 
 FlMethodResponse* get_platform_version() {
-    struct utsname uname_data = {};
-    uname(&uname_data);
-    g_autofree gchar *version = g_strdup_printf("Linux %s", uname_data.version);
-    g_autoptr(FlValue) result = fl_value_new_string(version);
-    return FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  struct utsname uname_data = {};
+  uname(&uname_data);
+  g_autofree gchar *version = g_strdup_printf("Linux %s", uname_data.version);
+  g_autoptr(FlValue) result = fl_value_new_string(version);
+  return FL_METHOD_RESPONSE(fl_method_success_response_new(result));
 }
 
 static void clipboard_request_image_callback(GtkClipboard* clipboard,
@@ -69,8 +61,9 @@ static void clipboard_request_image_callback(GtkClipboard* clipboard,
     gsize buffer_size = 0;
     GError* error = nullptr;
 
-    if (!gdk_pixbuf_save_to_buffer(pixbuf, &buffer, &buffer_size, "png", &error,
-                                   nullptr)) {
+    gdk_pixbuf_save_to_buffer(pixbuf, &buffer, &buffer_size, "png", &error,
+                              nullptr);
+    if (error) {
         fl_method_call_respond_error(method_call, "0", error->message, nullptr,
                                      nullptr);
         return;
@@ -95,121 +88,34 @@ static void read_image_from_clipboard(FlMethodCall* method_call) {
                                 g_object_ref(method_call));
 }
 
-static void screenshot_capture_callback(GtkWidget* widget, GdkPixbuf* pixbuf, gpointer user_data) {
-    FlMethodCall* method_call = static_cast<FlMethodCall*>(user_data);
-
-    if (!pixbuf) {
-        fl_method_call_respond_error(method_call, "screenshot_error", "Failed to capture screenshot", nullptr, nullptr);
-        g_object_unref(method_call);
-        return;
-    }
-
-    gchar* buffer = nullptr;
-    gsize buffer_size = 0;
-    GError* error = nullptr;
-
-    // Save the pixbuf to a PNG buffer in memory
-    if (!gdk_pixbuf_save_to_buffer(pixbuf, &buffer, &buffer_size, "png", &error, nullptr)) {
-        fl_method_call_respond_error(method_call, "screenshot_error", error->message, nullptr, nullptr);
-        g_error_free(error);
-        g_object_unref(method_call);
-        return;
-    }
-
-    if (!buffer) {
-        fl_method_call_respond_error(method_call, "screenshot_error", "Failed to convert screenshot to buffer", nullptr, nullptr);
-        g_object_unref(method_call);
-        return;
-    }
-
-    // Create a Uint8List from the buffer
-    FlValue* result = fl_value_new_uint8_list(reinterpret_cast<const uint8_t*>(buffer), buffer_size);
-    fl_method_call_respond_success(method_call, result, nullptr);
-
-    // Free the buffer and unref the method call
-    g_free(buffer);
-    g_object_unref(method_call);
-}
-
-static void get_screenshot(FlMethodCall* method_call) {
-    GdkDisplay* display = gdk_display_get_default();
-    if (!display) {
-        fl_method_call_respond_error(method_call, "screenshot_error", "No default display found", nullptr, nullptr);
-        return;
-    }
-
-    GdkWindow* root_window = gdk_display_get_default_root_window(display);
-    if (!root_window) {
-        fl_method_call_respond_error(method_call, "screenshot_error", "No root window found", nullptr, nullptr);
-        return;
-    }
-
-    // Capture the screenshot as a pixbuf
-    GdkPixbuf* pixbuf = gdk_pixbuf_get_from_window(root_window, 0, 0, gdk_window_get_width(root_window), gdk_window_get_height(root_window));
-
-    if (!pixbuf) {
-        fl_method_call_respond_error(method_call, "screenshot_error", "Failed to capture screenshot", nullptr, nullptr);
-        return;
-    }
-
-    // Now convert the pixbuf to a PNG buffer
-    gchar* buffer = nullptr;
-    gsize buffer_size = 0;
-    GError* error = nullptr;
-
-    if (!gdk_pixbuf_save_to_buffer(pixbuf, &buffer, &buffer_size, "png", &error, nullptr)) {
-        fl_method_call_respond_error(method_call, "screenshot_error", error->message, nullptr, nullptr);
-        g_error_free(error);
-        g_object_unref(method_call);
-        g_object_unref(pixbuf);
-        return;
-    }
-
-    if (!buffer) {
-        fl_method_call_respond_error(method_call, "screenshot_error", "Failed to convert screenshot to buffer", nullptr, nullptr);
-        g_object_unref(method_call);
-        g_object_unref(pixbuf);
-        return;
-    }
-
-    // Create a Uint8List from the buffer
-    FlValue* result = fl_value_new_uint8_list(reinterpret_cast<const uint8_t*>(buffer), buffer_size);
-    fl_method_call_respond_success(method_call, result, nullptr);
-
-    // Free the buffer and unref the pixbuf and method call
-    g_free(buffer);
-    g_object_unref(pixbuf);
-    // No need to unref method_call here because it's being handled by fl_method_call_respond_success
-}
-
 static void desktop_screenshot_plugin_dispose(GObject* object) {
-    G_OBJECT_CLASS(desktop_screenshot_plugin_parent_class)->dispose(object);
+  G_OBJECT_CLASS(desktop_screenshot_plugin_parent_class)->dispose(object);
 }
 
 static void desktop_screenshot_plugin_class_init(DesktopScreenshotPluginClass* klass) {
-    G_OBJECT_CLASS(klass)->dispose = desktop_screenshot_plugin_dispose;
+  G_OBJECT_CLASS(klass)->dispose = desktop_screenshot_plugin_dispose;
 }
 
 static void desktop_screenshot_plugin_init(DesktopScreenshotPlugin* self) {}
 
 static void method_call_cb(FlMethodChannel* channel, FlMethodCall* method_call,
                            gpointer user_data) {
-    DesktopScreenshotPlugin* plugin = DESKTOP_SCREENSHOT_PLUGIN(user_data);
-    desktop_screenshot_plugin_handle_method_call(plugin, method_call);
+  DesktopScreenshotPlugin* plugin = DESKTOP_SCREENSHOT_PLUGIN(user_data);
+  desktop_screenshot_plugin_handle_method_call(plugin, method_call);
 }
 
 void desktop_screenshot_plugin_register_with_registrar(FlPluginRegistrar* registrar) {
-    DesktopScreenshotPlugin* plugin = DESKTOP_SCREENSHOT_PLUGIN(
-            g_object_new(desktop_screenshot_plugin_get_type(), nullptr));
+  DesktopScreenshotPlugin* plugin = DESKTOP_SCREENSHOT_PLUGIN(
+      g_object_new(desktop_screenshot_plugin_get_type(), nullptr));
 
-    g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
-    g_autoptr(FlMethodChannel) channel =
-                                       fl_method_channel_new(fl_plugin_registrar_get_messenger(registrar),
-                                                             "desktop_screenshot",
-                                                             FL_METHOD_CODEC(codec));
-    fl_method_channel_set_method_call_handler(channel, method_call_cb,
-                                              g_object_ref(plugin),
-                                              g_object_unref);
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  g_autoptr(FlMethodChannel) channel =
+      fl_method_channel_new(fl_plugin_registrar_get_messenger(registrar),
+                            "desktop_screenshot",
+                            FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(channel, method_call_cb,
+                                            g_object_ref(plugin),
+                                            g_object_unref);
 
-    g_object_unref(plugin);
+  g_object_unref(plugin);
 }
